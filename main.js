@@ -3,12 +3,18 @@ function getMinBuildingPrice () {
 }
 
 function getUpgradeWorth(name) {
-    var prevCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed
+    
     var a = Game.Upgrades[name]
+        
+    var prevCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed
     a.earn()
     Game.CalculateGains()
     var diffCps = Math.abs(Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed - prevCps)
     a.unearn()
+
+    // doubles the cookies
+    if (a.baseDesc.includes("Golden")) diffCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed;
+    
     // calculates cps gain per money spent
     // doesn't take into account money left
     return ((diffCps) / ((a.getPrice() - Game.cookies) / Game.unbuffedCps))
@@ -23,8 +29,6 @@ function buyStuff () {
 
     if (currGoal != null) return
     
-    var firstUp = Game.UpgradesById[Game.UpgradesInStore[0].id].getPrice()
-
     var buildingWorths = Game.ObjectsById.map(o => ({ worth: (o.storedCps / ((o.bulkPrice - Game.cookies) / Game.unbuffedCps)), id: o.id, isBuilding: true}))
     var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id, isBuilding: false}))
     
@@ -43,7 +47,7 @@ function buyBest (worthsArray) {
         item.worth > max.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : max,
                                       {worth: 0, id: 0, isBuilding: false})
 
-    worthsArray = worthsArray.map(o => ({ worth: Math.abs(o.worth), id: o.id, isBuilding: o.isBuilding}))
+    worthsArray = worthsArray.map(o => ({ worth: o.worth, id: o.id, isBuilding: o.isBuilding}))
     
     currGoal = worthsArray.reduce((currGoal, item, id) =>
         item.worth > currGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : currGoal,
