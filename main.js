@@ -3,11 +3,11 @@ function getMinBuildingPrice () {
 }
 
 function getUpgradeWorth(name) {
-    var prevCps = Game.unbuffedCps
+    var prevCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed
     var a = Game.Upgrades[name]
     a.earn()
     Game.CalculateGains()
-    var diffCps = Math.abs(Game.unbuffedCps - prevCps)
+    var diffCps = Math.abs(Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed - prevCps)
     a.unearn()
     // calculates cps gain per money spent
     // doesn't take into account money left
