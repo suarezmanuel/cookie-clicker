@@ -11,7 +11,7 @@ function getUpgradeWorth(name) {
     a.unearn()
     // calculates cps gain per money spent
     // doesn't take into account money left
-    return ((diffCps) / ((a.basePrice - Game.cookies) / Game.unbuffedCps))
+    return ((diffCps) / ((a.getPrice() - Game.cookies) / Game.unbuffedCps))
 }
 
 // in ms
@@ -23,7 +23,7 @@ function buyStuff () {
 
     if (currGoal != null) return
     
-    var firstUp = Game.UpgradesById[Game.UpgradesInStore[0].id].basePrice
+    var firstUp = Game.UpgradesById[Game.UpgradesInStore[0].id].getPrice()
 
     var buildingWorths = Game.ObjectsById.map(o => ({ worth: (o.storedCps / ((o.bulkPrice - Game.cookies) / Game.unbuffedCps)), id: o.id, isBuilding: true}))
     var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id, isBuilding: false}))
@@ -67,15 +67,15 @@ function buyBest (worthsArray) {
     console.log("want to buy", object.name)
 
    function checkAndBuy() {
-        if (object.basePrice <= Game.cookies) {
+        if (object.getPrice() <= Game.cookies) {
             object.buy()
             currGoal = null
             console.log("Purchased", object.name)
         } else {
-            let dt = (object.basePrice-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
+            let dt = (object.getPrice()-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
             console.clear()
             console.log("want to buy", object.name)
-            console.log("costs", object.basePrice, " cookies, need", object.basePrice-Game.cookies, " cookies");
+            console.log("costs", object.getPrice(), " cookies, need", object.getPrice()-Game.cookies, " cookies");
             console.log("waiting for ", Math.floor(dt/60), "minutes and",  dt % 60 , " seconds")
             buyingTimeoutId = setTimeout(checkAndBuy, 1000) // Check again in 1 second
         }
