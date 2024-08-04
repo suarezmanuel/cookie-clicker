@@ -112,8 +112,10 @@ function buyBest (buildingWorths, upgradeWorths) {
             buyingTimeoutId = setTimeout(checkAndBuy, 1000) // Check again in 1 second
         }
     }
-    
-    checkAndBuy()
+
+    if (currGoal) {
+        checkAndBuy()
+    }
 }
 
 function enableInterrupt() {
