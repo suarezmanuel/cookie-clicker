@@ -47,12 +47,95 @@ var buyingTimeoutId = null
 var latestBought = []
 var interrupt = false
 
+var buildingWorthsDivs = []
+var upgradeWorthsDivs = []
+
+function updateUpgradeWorthDivs () {
+    const upgrades = document.querySelectorAll('#upgrades .crate.upgrade');
+
+    for (let i=0; i < Game.UpgradesInStore.length; i++) {
+        
+        if (upgradeWorthsDivs[i]) {
+            if (!upgrades[i].querySelector(".worth-div")) {
+                upgrades[i].appendChild(upgradeWorthsDivs[i])
+            }
+            continue;
+        }
+        
+        const element = document.createElement('div')
+        element.className = "worth-div"
+        element.style = "color: rgb(0,255,0); font-weight:bold; font-size: 12px"
+        if (!upgrades[i].querySelector(".worth-div")) {
+            upgrades[i].appendChild(element)
+        }
+        element.textContent = `worth: 0`
+        
+        upgradeWorthsDivs = [...upgradeWorthsDivs, element]
+    }
+}
+
+function initBuildingDivs () {
+
+    var temp = []
+    
+    for (let i=0; i < 20; i++) {
+        const element = document.createElement('div')
+        element.style = "color: rgb(0,255,0); font-weight:bold; font-size: 12px"
+        // document.getElementById("product" + i).appendChild(element)
+        document.querySelector(`#product${i} .content`).appendChild(element)
+        element.textContent = `worth: 0`
+
+        temp = [...temp, element]
+    }
+    
+    buildingWorthsDivs = temp
+}
+
+function updateWorthDivs (buildingWorths, buildingMax, buildingMin, upgradeWorths, upgradeMax, upgradeMin) {
+
+    // console.log(buildingWorths)
+    // console.log(buildingMax)
+    // console.log(buildingMin)
+    
+    var r = 0;
+    var g = 0;
+    
+    for (let i=0; i < buildingWorths.length; i++) {
+        // will be 1 if on minimum, and 0 on maximum
+        var ratio = (buildingMax.worth - buildingWorths[i].worth) / (buildingMax.worth - buildingMin.worth);
+        // console.log("enum", buildingMax.worth - buildingWorths[i].worth, " denum", buildingMax.worth - buildingMin)
+        r = 255 * ratio
+        g = 255 - r;
+        // console.log("r", r, " g", g)
+        buildingWorthsDivs[i].style.color = "rgb(" + r + "," + g + ",0)"
+        buildingWorthsDivs[i].textContent = "worth: " + Math.round(buildingWorths[i].worth);
+    }
+
+    // console.log(upgradeWorths)
+    for (let i=0; i < upgradeWorths.length; i++) {
+        // will be 1 if on minimum, and 0 on maximum
+        var ratio = (upgradeMax.worth - upgradeWorths[i].worth) / (upgradeMax.worth - upgradeMin.worth);
+        r = 255 * ratio
+        g = 255 - r;
+        upgradeWorthsDivs[i].style.color = "rgb(" + r + "," + g + ",0)"
+        upgradeWorthsDivs[i].textContent = "worth: " + Math.round(upgradeWorths[i].worth);
+    }
+}
+
 function buyStuff () {
 
     if (currGoal != null) return
     
     var buildingWorths = Game.ObjectsById.map(o => ({ worth: getBuildingWorth(o.name, 0), id: o.id }))
     var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id }))
+
+    var unlockedLength = 0;
+    for (let i=0; i < 20; i++) {
+        if (Game.ObjectsById[i].locked == 1) { break; } 
+        unlockedLength++;
+    }
+
+    buildingWorths = buildingWorths.slice(0, unlockedLength);
     
     // bestBuy
     buyBest(buildingWorths, upgradeWorths)
@@ -65,13 +148,25 @@ function buyUpgrades () {
 function buyBest (buildingWorths, upgradeWorths) {
 
     buildingGoal = buildingWorths.reduce((buildingGoal, item, id) =>
-        item.worth > buildingGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : buildingGoal,
-                                      {worth: 0, id: 0, isBuilding: false})
+        item.worth > buildingGoal.worth ? {worth: item.worth, id: item.id} : buildingGoal,
+                                      {worth: 0, id: 0})
 
+    buildingMinimum = buildingWorths.reduce((buildingMinimum, item, id) =>
+        item.worth < buildingMinimum.worth ? {worth: item.worth, id: item.id} : buildingMinimum,
+                                      {worth: Infinity, id: 0})
+    
     upgradeGoal = upgradeWorths.reduce((upgradeGoal, item, id) =>
-        item.worth > upgradeGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : upgradeGoal,
-                                      {worth: 0, id: 0, isBuilding: false})
+        item.worth > upgradeGoal.worth ? {worth: item.worth, id: item.id} : upgradeGoal,
+                                      {worth: 0, id: 0})
 
+    upgradeMinimum = upgradeWorths.reduce((upgradeMinimum, item, id) =>
+        item.worth < upgradeMinimum.worth ? {worth: item.worth, id: item.id} : upgradeMinimum,
+                                      {worth: Infinity, id: 0})
+
+
+    // write and color worths
+    updateWorthDivs(buildingWorths, buildingGoal, buildingMinimum, upgradeWorths, upgradeGoal, upgradeMinimum);
+    
     var object = null
     if (buildingGoal.worth > upgradeGoal.worth) {
 
@@ -86,36 +181,34 @@ function buyBest (buildingWorths, upgradeWorths) {
         object = Game.UpgradesById[upgradeGoal.id]
     }
 
-    // console.clear()
-    console.log("want to buy", object.name)
-
-   function checkAndBuy() {
+    checkAndBuy()
+    
+    function checkAndBuy() {
         // if buff just ended
         if (interrupt) {
             console.log("buff ended")
             interrupt = false
             currGoal = null
-            return
         }
         if (object.getPrice() <= Game.cookies) {
             object.buy()
             currGoal = null
-            // console.log("Purchased", object.name)
+            console.log("Purchased", object.name)
             latestBought = [...latestBought, object]
         } else {
+            if (interrupt) { interrupt = false; return }
             let dt = (object.getPrice()-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
-            // console.clear()
+            console.clear()
             // console.log("lastest stuff bought", latestBought)
             console.log("want to buy", object.name)
-            // console.log("costs", object.getPrice(), " cookies, need", object.getPrice()-Game.cookies, " cookies");
-            // console.log("waiting for ", Math.floor(dt/60), "minutes and",  dt % 60 , " seconds")
+            console.log("waiting for ", Math.floor(dt/60), "minutes and",  Math.round(dt % 60) , " seconds")
             buyingTimeoutId = setTimeout(checkAndBuy, 1000) // Check again in 1 second
         }
     }
 
-    if (currGoal) {
-        checkAndBuy()
-    }
+    // if (currGoal) {
+    //     checkAndBuy()
+    // }
 }
 
 function enableInterrupt() {
@@ -160,11 +253,13 @@ var BuyingIntervalId;
 var ClickingIntervalId;
 var ClickingGoldenCookiesIntervalId;
 var PlottingPointsItervalId;
+var DrawWorthsIntervalId;
 
 function startAutoPlayer () {
     
     console.log("auto player started")
-
+    initBuildingDivs()
+    
     BuyingIntervalId = setInterval(() => {
         try {
             buyStuff()
@@ -194,9 +289,14 @@ function startAutoPlayer () {
 }
 
 function stopAutoPlayer () {
+    // interrupt a stopping signal (recalculation of choice)
+    interrupt = true;
     if (canvas !== null) {
         document.body.removeChild(canvas)
         canvas = null
+    }
+    for (let i=0; i < 20; i++) {
+        document.querySelector(`#product${i} .content`).removeChild(buildingWorthsDivs[i]);
     }
     clearInterval(BuyingIntervalId)
     clearInterval(ClickingIntervalId)
@@ -215,8 +315,8 @@ function createCanvas () {
     canvas.width = 200
     canvas.height = 200
     canvas.style.position = 'fixed'; // Change to fixed
-    canvas.style.right = '10px';
-    canvas.style.top = '10px';
+    canvas.style.left = '10px';
+    canvas.style.bottom = '10px';
     canvas.style.zIndex = '1000000'; // Increase z-index
     canvas.style.display = 'block';
     canvas.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -284,10 +384,11 @@ function drawGraph () {
     ctx.stroke()
 }
 
-console.log(canvas)
+// console.log(canvas)
 
 PlottingPointsItervalId = setInterval (() => {
     try {
+        updateUpgradeWorthDivs();
         addPoint()
         drawGraph()
     } catch (error) {
@@ -295,6 +396,15 @@ PlottingPointsItervalId = setInterval (() => {
         stopAutoPlayer()
     }
 }, 100)
+
+DrawWorthsIntervalId = setInterval (() => {
+    try {
+        updateUpgradeWorthDivs();
+    } catch (error) {
+        console.log(error)
+        stopAutoPlayer()
+    }
+}, 10)
 
 
 document.addEventListener('keydown', (event) => {
