@@ -2,108 +2,153 @@ function getMinBuildingPrice () {
     return Math.min(...Game.ObjectsById.map(o => o.bulkPrice))
 }
 
-function getUpgradeWorth(name) {
-    
-    var a = Game.Upgrades[name]
-        
-    var prevCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed
-    a.earn()
-    Game.CalculateGains()
-    var diffCps = Math.abs(Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed - prevCps)
-    a.unearn()
+function getCurrCps () {
+    return Game.globalCpsMult * Game.buildingCps + Game.mouseCps() * 1000/clickingSpeed
+}
 
-    // doubles the cookies
-    if (a.baseDesc.includes("Golden")) diffCps = Game.unbuffedCps + Game.mouseCps() * 1000/clickingSpeed;
+function getUpgradeWorth(name) {
+
+    var gainedCps = 0
+    var a = Game.Upgrades[name]
+
+    // if bingo center research facility
+    if (a.id == 64) { 
+        // gives 3 more times of the grandmas total cps
+        gainedCps = 3 * Game.ObjectsById[1].amount * Game.ObjectsById[1].storedCps;
+    } else {
+        // console.log("name is ", name)
+        var prevCps = getCurrCps()
+        a.earn()
+        Game.CalculateGains()
+        gainedCps = Math.abs(getCurrCps() - prevCps)
+        a.unearn()
+    }
+
+    // golden cookie boosts give half of current cps
+    if (a.baseDesc.includes("Golden")) gainedCps = 0.5*getCurrCps();
     
-    // calculates cps gain per money spent
-    // doesn't take into account money left
-    return ((diffCps) / ((a.getPrice() - Game.cookies) / Game.unbuffedCps))
+    // (gainedcps / timetoget) times timetopayback
+    return (gainedCps / Math.max(((a.getPrice() - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + gainedCps)/ a.getPrice(), 1)
+}
+
+// want pretty numbers
+// give it priority based on how close to a prett number it is
+// 1, 25, 50, 75, 100, ..
+
+function getBuildingWorth(name) {
+    var o = Game.Objects[name]
+    return (o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + o.storedCps) / o.bulkPrice, 1)
 }
 
 // in ms
 var clickingSpeed = 10
 var currGoal = null
 var buyingTimeoutId = null
+var latestBought = []
+var interrupt = false
 
 function buyStuff () {
 
     if (currGoal != null) return
     
-    var buildingWorths = Game.ObjectsById.map(o => ({ worth: (o.storedCps / ((o.bulkPrice - Game.cookies) / Game.unbuffedCps)), id: o.id, isBuilding: true}))
-    var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id, isBuilding: false}))
+    var buildingWorths = Game.ObjectsById.map(o => ({ worth: getBuildingWorth(o.name, 0), id: o.id }))
+    var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id }))
     
-    var worthsArray = [...buildingWorths, ...upgradeWorths]
     // bestBuy
-    buyBest(worthsArray)
+    buyBest(buildingWorths, upgradeWorths)
 }
 
 function buyUpgrades () {
     Game.UpgradesById[Game.UpgradesInStore[0].id].click()
 }
 
-function buyBest (worthsArray) {
+function buyBest (buildingWorths, upgradeWorths) {
 
-    var max = worthsArray.reduce((max, item, id) =>
-        item.worth > max.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : max,
+    buildingGoal = buildingWorths.reduce((buildingGoal, item, id) =>
+        item.worth > buildingGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : buildingGoal,
                                       {worth: 0, id: 0, isBuilding: false})
 
-    worthsArray = worthsArray.map(o => ({ worth: o.worth, id: o.id, isBuilding: o.isBuilding}))
-    
-    currGoal = worthsArray.reduce((currGoal, item, id) =>
-        item.worth > currGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : currGoal,
+    upgradeGoal = upgradeWorths.reduce((upgradeGoal, item, id) =>
+        item.worth > upgradeGoal.worth ? {worth: item.worth, id: item.id, isBuilding: item.isBuilding} : upgradeGoal,
                                       {worth: 0, id: 0, isBuilding: false})
-    
-    var name = ""
-    if (currGoal.isBuilding) {
-        name = Game.ObjectsById[currGoal.id].name
-    } else {
-        name = Game.UpgradesById[currGoal.id].name
-    }
 
     var object = null
-    if (currGoal.isBuilding) {
-        object = Game.ObjectsById[currGoal.id]
+    if (buildingGoal.worth > upgradeGoal.worth) {
+
+        // if we gonna upgrade building, calculate maximum taking 25 in account
+        var newMax = buildingWorths.reduce((newMax, item, id) =>
+        item.worth * (1 + ((item.amount % 25) / 25)) * (buildingGoal.worth / item.worth) > buildingGoal.worth * (1 + ((buildingGoal.amount % 25) / 25)) * 1 ? {worth: item.worth * (1 + ((item.amount % 25) / 25)), id: item.id} : newMax,
+                                      {worth: 0, id: 0, isBuilding: false})
+
+        object = Game.ObjectsById[newMax.id]
+        
     } else {
-        object = Game.UpgradesById[currGoal.id]
+        object = Game.UpgradesById[upgradeGoal.id]
     }
 
-    console.clear()
+    // console.clear()
     console.log("want to buy", object.name)
 
    function checkAndBuy() {
+        // if buff just ended
+        if (interrupt) {
+            console.log("buff ended")
+            interrupt = false
+            currGoal = null
+            return
+        }
         if (object.getPrice() <= Game.cookies) {
             object.buy()
             currGoal = null
-            console.log("Purchased", object.name)
+            // console.log("Purchased", object.name)
+            latestBought = [...latestBought, object]
         } else {
             let dt = (object.getPrice()-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
-            console.clear()
+            // console.clear()
+            // console.log("lastest stuff bought", latestBought)
             console.log("want to buy", object.name)
-            console.log("costs", object.getPrice(), " cookies, need", object.getPrice()-Game.cookies, " cookies");
-            console.log("waiting for ", Math.floor(dt/60), "minutes and",  dt % 60 , " seconds")
+            // console.log("costs", object.getPrice(), " cookies, need", object.getPrice()-Game.cookies, " cookies");
+            // console.log("waiting for ", Math.floor(dt/60), "minutes and",  dt % 60 , " seconds")
             buyingTimeoutId = setTimeout(checkAndBuy, 1000) // Check again in 1 second
         }
     }
     
     checkAndBuy()
-    
-    // // wait until you have the money
-    // while (object.basePrice-Game.cookies > 0) { 
-    //     console.clear()
-    //     console.log("want to buy", object.name)
-    //     console.log("costs", object.basePrice, " cookies, need", object.basePrice-Game.cookies, " cookies");
-    //     console.log("waiting for ", (object.basePrice-Game.cookies) / Game.cookiesPs, " seconds")
-    //     setTimeout(Math.max(0,((object.basePrice-Game.cookies) / Game.cookiesPs)*1000))
-    // }
-    // object.buy()
-    // currGoal = null
+}
+
+function enableInterrupt() {
+    console.log("interrupt enabled")
+    interrupt = true
+}
+
+var prevBuffs = []
+
+function helper () {
+    // when buff is about to end, replan buying strategy
+    var min = Infinity;
+    for (i in Game.buffs) {
+        min = Math.min(min, Game.buffs[i].time / Game.fps)
+    }
+
+    if (min != Infinity) {
+        prevBuffs = Game.buffs
+        // change strategy when buff starts
+        enableInterrupt()
+        // change strategy when buff ends
+        setTimeout(enableInterrupt, min*1000 + 100)
+    }
 }
 
 function clickGoldenCookie () {
     while (Game.shimmers.length > 0) {
         // dont click red cookies
         if (Game.shimmers[0].type = "golden") {
+            
             Game.shimmers[0].pop()
+            
+            if (prevBuffs != Game.buffs) {
+                setTimeout(helper, 100)
+            }
         }
     }
 }
@@ -115,17 +160,9 @@ var ClickingGoldenCookiesIntervalId;
 var PlottingPointsItervalId;
 
 function startAutoPlayer () {
+    
     console.log("auto player started")
 
-    // while (true) {
-    //     try {
-    //         buyStuff()
-    //     } catch (error) {
-    //         console.log(error)
-    //         stopAutoPlayer()
-    //     }  
-    //     setTimeout(100)
-    // }
     BuyingIntervalId = setInterval(() => {
         try {
             buyStuff()
@@ -155,6 +192,10 @@ function startAutoPlayer () {
 }
 
 function stopAutoPlayer () {
+    if (canvas !== null) {
+        document.body.removeChild(canvas)
+        canvas = null
+    }
     clearInterval(BuyingIntervalId)
     clearInterval(ClickingIntervalId)
     clearInterval(ClickingGoldenCookiesIntervalId)
@@ -165,10 +206,11 @@ function stopAutoPlayer () {
     stop()
 }
 
+var canvas = null
 function createCanvas () {
-    let canvas = document.createElement('canvas')
+    canvas = document.createElement('canvas')
     canvas.id = "Cookie Chart"
-    canvas.width = 400
+    canvas.width = 200
     canvas.height = 200
     canvas.style.position = 'fixed'; // Change to fixed
     canvas.style.right = '10px';
@@ -186,40 +228,55 @@ function createCanvas () {
 
 var plotPoints = []
 var canvas = createCanvas()
-var logbase = 1;
+var divTimes = 1;
 
-function logg (n) {
-    if (logbase == 1) return n;
-    return (Math.log(n) / Math.log(logbase))
+
+function drawMetric (ctx) {
+    ctx.font = "20px pixel"
+    ctx.fillStyle = "white"
+    ctx.fillText("2^" + (divTimes-1).toString() , canvas.width/2, canvas.height/2)
 }
 
 function addPoint () {
-    // plotPoints = [...plotPoints, Game.unbuffedCps]
-    let cookies = Game.cookies
 
-    if (logg(cookies) > canvas.height) { 
-        logbase *= 2
-        plotPoints.forEach(o => logg(o))
+    let cookies = Game.cookies
+    let flag = false
+    while (cookies/(Math.pow(2,divTimes)) > canvas.height) { 
+        divTimes++
+        flag = true
     }
-    plotPoints = [...plotPoints, logg(cookies)]
+    if (flag == true) {
+        
+        if (plotPoints.length >= 20) {
+            for (let i=0; i < 20; i++) {
+                plotPoints[plotPoints.length - 20 + i] /= 2;
+            }
+        }
+        
+        flag = false
+    }
+    plotPoints = [...plotPoints, cookies/Math.pow(2,divTimes)]
 }
 
 function drawGraph () {
     if (plotPoints.length == 0) return
     let ctx = canvas.getContext('2d')
-    let dt = canvas.width / plotPoints.length
+    let dt = canvas.width / Math.min(plotPoints.length, 20)
 
     ctx.clearRect(0,0, canvas.width, canvas.height)
     
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawMetric(ctx)
+    
     ctx.strokeStyle = "white"
 
     ctx.beginPath()
-    ctx.moveTo(0, canvas.height - plotPoints[0]);
+    ctx.moveTo(0, canvas.height - plotPoints[Math.max(plotPoints.length - 20 - 1, 0)]);
 
-    for (let i = 1; i < plotPoints.length; i++) {
-        ctx.lineTo(dt*i, canvas.height - plotPoints[i]);
+    for (let i = 0; i < Math.min(plotPoints.length, 20); i++) {
+        ctx.lineTo(dt*i, canvas.height - plotPoints[plotPoints.length - 20 + i - 1]);
     }
 
     ctx.stroke()
@@ -235,8 +292,7 @@ PlottingPointsItervalId = setInterval (() => {
         console.log(error)
         stopAutoPlayer()
     }
-// }, 60000*15)
-}, 1000)
+}, 100)
 
 
 document.addEventListener('keydown', (event) => {
