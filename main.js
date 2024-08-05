@@ -16,7 +16,6 @@ function getUpgradeWorth(name) {
         // gives 3 more times of the grandmas total cps
         gainedCps = 3 * Game.ObjectsById[1].amount * Game.ObjectsById[1].storedCps;
     } else {
-        // console.log("name is ", name)
         var prevCps = getCurrCps()
         a.earn()
         Game.CalculateGains()
@@ -28,7 +27,9 @@ function getUpgradeWorth(name) {
     if (a.baseDesc.includes("Golden")) gainedCps = 0.5*getCurrCps();
     
     // (gainedcps / timetoget) times timetopayback
-    return (gainedCps / Math.max(((a.getPrice() - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + gainedCps)/ a.getPrice(), 1)
+    return (gainedCps / Math.max(((a.getPrice() - Game.cookies) / getCurrCps()), 1)) * ((getCurrCps() + gainedCps)/ a.getPrice())
+
+    
 }
 
 // want pretty numbers
@@ -37,9 +38,7 @@ function getUpgradeWorth(name) {
 
 function getBuildingWorth(name) {
     var o = Game.Objects[name]
-    // console.log(o)
-    // console.log((o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + o.storedCps) / o.bulkPrice, 1))
-    return (o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + o.storedCps) / o.bulkPrice, 1)
+    return (o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * ((getCurrCps() + o.storedCps) / o.bulkPrice)
     
 }
 
@@ -55,28 +54,16 @@ function buyStuff () {
 
     if (currGoal != null) return
     
-    // var buildingWorths = Game.ObjectsById;
-    var buildingWorths = JSON.parse(JSON.stringify(Game.ObjectsById));
-    
     var unlockedLength = 0;
     for (let i=0; i < 20; i++) {
         if (Game.ObjectsById[i].locked == 1) { break; } 
         unlockedLength++;
     }
 
-    // buildingWorths = buildingWorths.slice(0, unlockedLength);
-    
-    for (let i=0; i < buildingWorths.length; i++) {
-        console.log(getBuildingWorth(buildingWorths[i].name))
-        buildingWorths[i] = {worth: getBuildingWorth(buildingWorths[i].name), id: i}
-    }
-
-    console.log(buildingWorths)
-    
-    // var buildingWorths = Game.ObjectsById.map(o => ({ worth: getBuildingWorth(o.name), id: o.id }))
+    var buildingWorths = Game.ObjectsById.map(o => ({ worth: getBuildingWorth(o.name), id: o.id, amount: o.amount }))
     var upgradeWorths = Game.UpgradesInStore.map(o => ({ worth: getUpgradeWorth(o.name), id: o.id }))
-    // console.log(buildingWorths)
-   
+
+    buildingWorths = buildingWorths.slice(0, unlockedLength);
     // bestBuy
     buyBest(buildingWorths, upgradeWorths)
 }
@@ -87,8 +74,6 @@ function buyUpgrades () {
 
 function buyBest (buildingWorths, upgradeWorths) {
 
-    // console.log("beforebefore", buildingWorths)
-    
     buildingMax = buildingWorths.reduce((buildingMax, item, id) =>
         item.worth > buildingMax.worth ? {worth: item.worth, id: item.id} : buildingMax,
                                       {worth: 0, id: 0})
@@ -105,9 +90,6 @@ function buyBest (buildingWorths, upgradeWorths) {
         item.worth < upgradeMinimum.worth ? {worth: item.worth, id: item.id} : upgradeMinimum,
                                       {worth: Infinity, id: 0})
 
-    // console.log("before", buildingWorths)
-    // let newMax = {worth: buildingMax.worth, id: buildingMax.id}
-    // let newMin = {worth: buildingMin.worth, id: buildingMin.id}
     let newMax = buildingMax
     let newMin = buildingMin
     
@@ -115,21 +97,12 @@ function buyBest (buildingWorths, upgradeWorths) {
     
     if (buildingMax.worth > upgradeMax.worth) {
 
-        console.log("mi")
-        console.log(buildingWorths)
-
         for (let i=0; i < buildingWorths.length; i++) {
             buildingWorths[i].worth = (buildingWorths[i].worth * (1 + ((buildingWorths[i].amount % 25) / 25)) * (Game.ObjectsById[buildingMax.id].bulkPrice / Game.ObjectsById[i].bulkPrice))
         }
-        // for (o in buildingWorths) {
-        //     console.log("id is", o)
-        //     console.log((o.worth * (1 + ((o.amount % 25) / 25)) * (Game.ObjectsById[buildingMax.id].bulkPrice / Game.ObjectsById[o.id].bulkPrice)))
-        // }
-        
-        // buildingWorths = buildingWorths.map(o => ({worth: (o.worth * (1 + ((o.amount % 25) / 25)) * (Game.ObjectsById[buildingMax.id].bulkPrice / Game.ObjectsById[o.id].bulkPrice)), id: o.id}))
-        
+   
         // if we gonna upgrade building, calculate maximum taking 25 in account
-        newMax = upgradeWorths.reduce((newMax, item, id) =>
+        newMax = buildingWorths.reduce((newMax, item, id) =>
         item.worth > newMax.worth ? {worth: item.worth, id: item.id} : newMax,
                                       {worth: 0, id: 0})
 
@@ -143,13 +116,10 @@ function buyBest (buildingWorths, upgradeWorths) {
         object = Game.UpgradesById[upgradeMax.id]
     }
 
-    // console.log(newMax);
-    // console.log(newMin);
-    // write and color worths
-    // console.log("second", buildingWorths)
     updateWorthDivs(buildingWorths, newMax, newMin, upgradeWorths, upgradeMax, upgradeMinimum);
 
-    // checkAndBuy()
+    // console.log("want to buy", object.name)
+    checkAndBuy()
     
     function checkAndBuy() {
         // if buff just ended
@@ -161,22 +131,18 @@ function buyBest (buildingWorths, upgradeWorths) {
         if (object.getPrice() <= Game.cookies) {
             object.buy()
             currGoal = null
-            console.log("Purchased", object.name)
+            // console.log("Purchased", object.name)
             latestBought = [...latestBought, object]
         } else {
             if (interrupt) { interrupt = false; return }
             let dt = (object.getPrice()-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
-            console.clear()
+            // console.clear()
             // console.log("lastest stuff bought", latestBought)
-            console.log("want to buy", object.name)
-            console.log("waiting for ", Math.floor(dt/60), "minutes and",  Math.round(dt % 60) , " seconds")
-            buyingTimeoutId = setTimeout(checkAndBuy, 1000) // Check again in 1 second
+            // console.log("want to buy", object.name)
+            // console.log("waiting for ", Math.floor(dt/60), "minutes and",  Math.round(dt % 60) , " seconds")
+            buyingTimeoutId = setTimeout(checkAndBuy, 100) // Check again in 1 second
         }
     }
-
-    // if (currGoal) {
-    //     checkAndBuy()
-    // }
 }
 
 function enableInterrupt() {
@@ -449,43 +415,22 @@ function initBuildingDivs () {
 
 function updateWorthDivs (buildingWorths, buildingMax, buildingMin, upgradeWorths, upgradeMax, upgradeMin) {
 
-    // console.log(buildingWorths)
-    console.log("lalalla")
-    // console.log(buildingMax)
-    // console.log(buildingMin)
-    
     var r = 0;
     var g = 0;
 
-    var absoluteMax = Math.max(buildingMax, upgradeMax);
-    // console.log(buildingWorths)
-    // console.log(upgradeWorths)
+    var absoluteMax = Math.max(buildingMax.worth, upgradeMax.worth);
+
     for (let i=0; i < buildingWorths.length; i++) {
         // will be 1 if on minimum, and 0 on maximum
-        // var ratio = (buildingMax.worth - buildingWorths[i].worth) / (buildingMax.worth - buildingMin.worth);
-        var ratio = (absoluteMax.worth - buildingWorths[i].worth) / (absoluteMax.worth - buildingMin.worth);
-        // if (absoluteMax.worth == Infinity) {
-        //     console.log("me")
-        //     ratio = 0;
-        // }
-        // console.log("enum", buildingMax.worth - buildingWorths[i].worth, " denum", buildingMax.worth - buildingMin)
+        var ratio = (absoluteMax - buildingWorths[i].worth) / (absoluteMax - buildingMin.worth);
         r = 255 * ratio
         g = 255 - r;
         buildingWorthsDivs[i].style.color = "rgb(" + r + "," + g + ",0)"
-        // console.log(buildingWorths[i])
-        // console.log(buildingWorths[i].worth)
         buildingWorthsDivs[i].textContent = "worth: " + Math.round(buildingWorths[i].worth);
     }
 
-    // console.log(upgradeWorths)
     for (let i=0; i < upgradeWorths.length; i++) {
-        // will be 1 if on minimum, and 0 on maximum
-        // var ratio = (upgradeMax.worth - upgradeWorths[i].worth) / (upgradeMax.worth - upgradeMin.worth);
-        var ratio = (absoluteMax.worth - buildingWorths[i].worth) / (absoluteMax.worth - buildingMin.worth);
-        // if (absoluteMax.worth == Infinity) {
-        //     console.log("me")
-        //     ratio = 0;
-        // }
+        var ratio = (absoluteMax - upgradeWorths[i].worth) / (absoluteMax - upgradeMin.worth);
         r = 255 * ratio
         g = 255 - r;
         upgradeWorthsDivs[i].style.color = "rgb(" + r + "," + g + ",0)"
@@ -493,7 +438,6 @@ function updateWorthDivs (buildingWorths, buildingMax, buildingMin, upgradeWorth
     }
 }
 
-// console.log(canvas)
 function a () {
     if (event.key == "s") { stopAutoPlayer() }
 }
