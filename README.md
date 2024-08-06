@@ -58,10 +58,10 @@ the exact equations used are the following:
      if (buildingMax.worth > upgradeMax.worth) {
 
         for (let i=0; i < buildingWorths.length; i++) {
-            buildingWorths[i].worth =
-                                      (buildingWorths[i].worth
-                                       * (1 + ((buildingWorths[i].amount % 25) / 25))
-                                       * (Game.ObjectsById[buildingMax.id].bulkPrice /   Game.ObjectsById[i].bulkPrice))
+
+          buildingWorths[i].worth =  (buildingWorths[i].worth
+                                     * (1 + ((buildingWorths[i].amount % 25) / 25))
+                                     * (Game.ObjectsById[buildingMax.id].bulkPrice /   Game.ObjectsById[i].bulkPrice))
         }
 
       ... recalculate max, min
