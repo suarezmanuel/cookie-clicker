@@ -44,16 +44,15 @@ function getBuildingWorth(name) {
 
 // in ms
 var clickingSpeed = 10
-var currGoal = null
 var buyingTimeoutId = null
 var latestBought = []
 var interrupt = false
-
+var stopped = false
 
 function buyStuff () {
 
-    if (currGoal != null) return
-    
+    if (stopped) return;
+
     var unlockedLength = 0;
     for (let i=0; i < 20; i++) {
         if (Game.ObjectsById[i].locked == 1) { break; } 
@@ -118,29 +117,35 @@ function buyBest (buildingWorths, upgradeWorths) {
 
     updateWorthDivs(buildingWorths, newMax, newMin, upgradeWorths, upgradeMax, upgradeMinimum);
 
-    // console.log("want to buy", object.name)
+    
     checkAndBuy()
     
     function checkAndBuy() {
-        // if buff just ended
+
+        if (stopped) { return }
+
+        
+        // if buff started or ended
         if (interrupt) {
-            console.log("buff ended")
+            // console.log("buff interruption")
             interrupt = false
-            currGoal = null
+            setTimeout(buyStuff, 100)
+            return
         }
+
+        console.clear()
+        
         if (object.getPrice() <= Game.cookies) {
             object.buy()
-            currGoal = null
-            // console.log("Purchased", object.name)
+            console.log("bought", object.name)
+            setTimeout(buyStuff, 100)
             latestBought = [...latestBought, object]
         } else {
             if (interrupt) { interrupt = false; return }
-            let dt = (object.getPrice()-Game.cookies) / (Game.cookiesPs + Game.mouseCps() * 1000/clickingSpeed);
-            // console.clear()
-            // console.log("lastest stuff bought", latestBought)
-            // console.log("want to buy", object.name)
-            // console.log("waiting for ", Math.floor(dt/60), "minutes and",  Math.round(dt % 60) , " seconds")
-            buyingTimeoutId = setTimeout(checkAndBuy, 100) // Check again in 1 second
+            let dt = (object.getPrice() - Game.cookies) / getCurrCps();
+            console.log("waiting for", object.name)
+            // check if waited enough
+            buyingTimeoutId = setTimeout(checkAndBuy, 100)
         }
     }
 }
@@ -193,15 +198,16 @@ function startAutoPlayer () {
     
     console.log("auto player started")
     initBuildingDivs()
+
     
-    BuyingIntervalId = setInterval(() => {
+    setTimeout (() => {
         try {
             buyStuff()
         } catch (error) {
             console.log(error)
             stopAutoPlayer()
-        }  
-    } , 500)
+        }
+    }, 1000) 
 
     ClickingIntervalId = setInterval(() => {
         try {
@@ -223,7 +229,6 @@ function startAutoPlayer () {
 
     PlottingPointsItervalId = setInterval (() => {
         try {
-            updateUpgradeWorthDivs();
             addPoint()
             drawGraph()
         } catch (error) {
@@ -232,6 +237,8 @@ function startAutoPlayer () {
         }
     }, 100)
 
+    // the upgrades update their HTML 
+    // so we need to write all the time
     DrawWorthsIntervalId = setInterval (() => {
         try {
             updateUpgradeWorthDivs();
@@ -256,12 +263,14 @@ function stopAutoPlayer () {
         // }
     }
     
+    stopped = true
     clearInterval(BuyingIntervalId)
     clearInterval(ClickingIntervalId)
     clearInterval(ClickingGoldenCookiesIntervalId)
     clearInterval(PlottingPointsItervalId)
     clearTimeout(buyingTimeoutId)
-    setTimeout(removeUpgradeWorthDivs, 1000)
+    clearInterval(DrawWorthsIntervalId)
+    setTimeout(removeUpgradeWorthDivs, 10)
     document.removeEventListener('keydown', a)
     console.log("auto player stopped")
     stop()
@@ -373,6 +382,9 @@ function removeUpgradeWorthDivs() {
 
     
 function updateUpgradeWorthDivs () {
+
+    if (stopped) return;
+    
     const upgrades = document.querySelectorAll('#upgrades .crate.upgrade');
 
     for (let i=0; i < Game.UpgradesInStore.length; i++) {
