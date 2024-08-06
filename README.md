@@ -1,23 +1,77 @@
 # cookie-clicker
-automatized cookie clicker game progression in a js script
-
-this is a script that can for now:
-1. plan ahead the next optimal? thing to buy
-2. make a graph of the cookies earned
-3. colors to understand choice taken
 
 <br>
 
-the optimality of things are calcualted by the cps earned by buying the item,
+automatized cookie clicker game progression in a js script
 
+<br>
+
+### this is a script that can for now:
+1. plan ahead the next optimal? thing to buy
+2. make a graph of the cookies earned
+3. color objects to understand current plan
+
+<br>
+
+### todo
+1. calculate building cps using .earn(), because grandmas affect other buildings
+2. make a graph that shows what was bought over time
+3. benchmark time to get a billion or smth
+
+<br>
+
+the optimality of things are calcualted by the (time to get item) * (time to repay item after buying) <br>
+if we decide to buy a building, then between the buildings multiply by (1 + how close to 25) which is a number from 1 to 2 <br>
+and multiply by ratio from the max we calculated previously
+
+its important for buildings to be close to multiples of 25 <br>
+because they unlock upgrades for themselves at these multiples <br>
 both buildings and upgrades are tested.
 
-the exact equation used is the following:
-`(o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * Math.max((getCurrCps() + o.storedCps) / o.bulkPrice, 1)`
+<br>
 
-the decided item will be in green, the redder an item the farther away its from the selected item
+the exact equations used are the following:
 
-if a building is to be bought and not an upgrade, then also take in account buildings that are closer to multiples of 25
+```
+
+  function getUpgradeWorth(name) {
+
+      ... calculate edge cases
+
+    return (gainedCps / Math.max(((a.getPrice() - Game.cookies) / getCurrCps()), 1)) * ((getCurrCps() + gainedCps)/ a.getPrice())
+  }
+
+  function getBuildingWorth(name) {
+    var o = Game.Objects[name]
+    return (o.storedCps / Math.max(((o.bulkPrice - Game.cookies) / getCurrCps()), 1)) * ((getCurrCps() + o.storedCps) / o.bulkPrice)
+  }
+
+  ...
+  ...
+  ...
+
+  function buyBest (buildingWorths, upgradeWorths) {
+  
+      ... calculate max,min for buildings, upgrades
+
+     if (buildingMax.worth > upgradeMax.worth) {
+
+        for (let i=0; i < buildingWorths.length; i++) {
+            buildingWorths[i].worth =
+                                      (buildingWorths[i].worth
+                                       * (1 + ((buildingWorths[i].amount % 25) / 25))
+                                       * (Game.ObjectsById[buildingMax.id].bulkPrice /   Game.ObjectsById[i].bulkPrice))
+        }
+
+      ... recalculate max, min
+
+  }
+
+```
+
+<br>
+
+the wanted item will be in green, the redder an item the farther away its from the wanted item
 
 <br>
 
