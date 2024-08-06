@@ -19,6 +19,7 @@ automatized cookie clicker game progression in a js script
 3. benchmark time to get a billion or smth
 
 <br>
+<br>
 
 the optimality of things are calcualted by the (time to get item) * (time to repay item after buying) <br>
 if we decide to buy a building, then between the buildings multiply by (1 + how close to 25) which is a number from 1 to 2 <br>
