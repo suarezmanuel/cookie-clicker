@@ -133,17 +133,17 @@ function buyBest (buildingWorths, upgradeWorths) {
             return
         }
 
-        console.clear()
+        // console.clear()
         
         if (object.getPrice() <= Game.cookies) {
             object.buy()
-            console.log("bought", object.name)
+            // console.log("bought", object.name)
             setTimeout(buyStuff, 100)
             latestBought = [...latestBought, object]
         } else {
             if (interrupt) { interrupt = false; return }
             let dt = (object.getPrice() - Game.cookies) / getCurrCps();
-            console.log("waiting for", object.name)
+            // console.log("waiting for", object.name)
             // check if waited enough
             buyingTimeoutId = setTimeout(checkAndBuy, 100)
         }
@@ -151,7 +151,7 @@ function buyBest (buildingWorths, upgradeWorths) {
 }
 
 function enableInterrupt() {
-    console.log("interrupt enabled")
+    // console.log("interrupt enabled")
     interrupt = true
 }
 
@@ -193,12 +193,58 @@ var ClickingIntervalId;
 var ClickingGoldenCookiesIntervalId;
 var PlottingPointsItervalId;
 var DrawWorthsIntervalId;
+var startingTime;
+let f = 0;
+
+function mileStones () {
+    
+    var currTime = Date.now();
+     
+    switch (f) {
+        case 0:
+            if (Game.cookiesEarned > 1000) {
+                console.log("milestone of 1K achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 1;
+            }
+            break;
+        case 1:
+            if (Game.cookiesEarned > 1000000) {
+                console.log("milestone of 1M achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 2;
+            }
+            break;
+        case 2:
+            if (Game.cookiesEarned > 1000000000) {
+                console.log("milestone of 1B achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 3;
+            }
+            break;
+        case 3:
+            if (Game.cookiesEarned > 1000000000000) {
+                console.log("milestone of 1T achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 4;
+            }
+            break;
+        case 4:
+            if (Game.cookiesEarned > 1000000000000000) {
+                console.log("milestone of 1Qua achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 5;
+            }
+            break;
+        case 5:
+            if (Game.cookiesEarned > 1000000000000000000) {
+                console.log("milestone of 1Qui achieved after", (currTime-startingTime)/(1000*60), " minutes")
+                f = 6;
+            }
+            break;
+    }
+}
 
 function startAutoPlayer () {
     
     console.log("auto player started")
     initBuildingDivs()
-
+    startingTime = Date.now()
     
     setTimeout (() => {
         try {
@@ -221,6 +267,7 @@ function startAutoPlayer () {
     ClickingGoldenCookiesIntervalId = setInterval (() => {
         try {
             clickGoldenCookie()
+            mileStones()
         } catch (error) {
             console.log(error)
             stopAutoPlayer()
@@ -311,19 +358,29 @@ function addPoint () {
 
     let cookies = Game.cookies
     let flag = false
+    
     while (cookies/(Math.pow(2,divTimes)) > canvas.height) { 
         divTimes++
         flag = true
     }
+
+    if (cookies )
+    
     if (flag == true) {
-        
         if (plotPoints.length >= 20) {
             for (let i=0; i < 20; i++) {
                 plotPoints[plotPoints.length - 20 + i] /= 2;
             }
         }
-        
         flag = false
+    } else {
+        if (divTimes > 4 && cookies < (canvas.height * Math.pow(2,divTimes-4))) {
+            for (let i=0; i < 20; i++) {
+                plotPoints[plotPoints.length - 20 + i] *= 2;
+            }
+
+            divTimes -= 2;
+        }
     }
     plotPoints = [...plotPoints, cookies/Math.pow(2,divTimes)]
 }
