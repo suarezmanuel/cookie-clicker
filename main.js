@@ -118,7 +118,7 @@ function buyBest (buildingWorths, upgradeWorths) {
     updateWorthDivs(buildingWorths, newMax, newMin, upgradeWorths, upgradeMax, upgradeMinimum);
 
     
-    checkAndBuy()
+    // checkAndBuy()
     
     function checkAndBuy() {
 
@@ -127,7 +127,7 @@ function buyBest (buildingWorths, upgradeWorths) {
         
         // if buff started or ended
         if (interrupt) {
-            // console.log("buff interruption")
+            console.log("buff interruption")
             interrupt = false
             setTimeout(buyStuff, 100)
             return
@@ -151,37 +151,38 @@ function buyBest (buildingWorths, upgradeWorths) {
 }
 
 function enableInterrupt() {
-    // console.log("interrupt enabled")
     interrupt = true
 }
 
-var prevBuffs = []
-
-function helper () {
-    // when buff is about to end, replan buying strategy
-    var min = Infinity;
-    for (i in Game.buffs) {
-        min = Math.min(min, Game.buffs[i].time / Game.fps)
-    }
-
-    if (min != Infinity) {
-        prevBuffs = Game.buffs
-        // change strategy when buff starts
-        enableInterrupt()
-        // change strategy when buff ends
-        setTimeout(enableInterrupt, min*1000 + 100)
-    }
+function helper (buff) {
+    enableInterrupt()
+    // change strategy when buff ends
+    setTimeout(enableInterrupt, (buff.time / Game.fps) * 1000 + 100)
 }
 
 function clickGoldenCookie () {
     while (Game.shimmers.length > 0) {
         // dont click red cookies
         if (Game.shimmers[0].type = "golden") {
+
+            let prevBuff = null
+            
+            if (Object.keys(Game.buffs).length != 0) {
+                prevBuff = Object.values(Game.buffs)[Object.keys(Game.buffs).length-1]
+            }
             
             Game.shimmers[0].pop()
+
+            let currBuff = null
+            if (Object.keys(Game.buffs).length != 0) {
+                currBuff = Object.values(Game.buffs)[Object.keys(Game.buffs).length-1]
+            }
             
-            if (prevBuffs != Game.buffs) {
-                setTimeout(helper, 100)
+            if (prevBuff != currBuff) {
+                enableInterrupt()
+                // change strategy when buff ends
+                setTimeout(enableInterrupt, (currBuff.time / Game.fps) * 1000 + 100)
+                // setTimeout(helper(currBuff), 100)
             }
         }
     }
@@ -443,8 +444,31 @@ function updateUpgradeWorthDivs () {
     if (stopped) return;
     
     const upgrades = document.querySelectorAll('#upgrades .crate.upgrade');
+    const techUpgrades = document.querySelectorAll('#techUpgrades .crate.upgrade.enabled')
 
-    for (let i=0; i < Game.UpgradesInStore.length; i++) {
+    // first add the tech upgrades
+    for (let i=0; i < techUpgrades.length; i++) {
+        
+        if (upgradeWorthsDivs[i]) {
+            if (!techUpgrades[i].querySelector(".worth-div")) {
+                techUpgrades[i].appendChild(upgradeWorthsDivs[i])
+            }
+            continue;
+        }
+        
+        const element = document.createElement('div')
+        element.className = "worth-div"
+        element.style = "color: rgb(0,255,0); font-weight:bold; font-size: 12px"
+        if (!techUpgrades[i].querySelector(".worth-div")) {
+            techUpgrades[i].appendChild(element)
+        }
+        element.textContent = `worth: 0`
+        
+        upgradeWorthsDivs = [...upgradeWorthsDivs, element]
+    }
+    
+    // then add the normal upgrades
+    for (let i=0; i < upgrades.length; i++) {
         
         if (upgradeWorthsDivs[i]) {
             if (!upgrades[i].querySelector(".worth-div")) {
